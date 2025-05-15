@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: 220 15% 96%; /* Neutral light gray */
+    --foreground: 220 10% 20%; /* Dark gray for text */
+
+    --card: 220 15% 100%; /* White for cards, slightly off-white */
+    --card-foreground: 220 10% 20%;
+
+    --popover: 220 15% 100%;
+    --popover-foreground: 220 10% 20%;
+
+    --primary: 215 60% 50%; /* A clear, accessible blue for primary actions/links */
+    --primary-foreground: 0 0% 100%; /* White text on primary blue */
+
+    --secondary: 210 50% 90%; /* Muted blue - will be used for input backgrounds */
+    --secondary-foreground: 215 40% 30%; /* Text on muted blue background */
+
+    --muted: 220 15% 90%; /* Lighter gray for less important text */
+    --muted-foreground: 220 10% 40%;
+
+    --accent: 120 39% 49%; /* Green (#4CAF50) for 'Calculate' buttons and positive values */
+    --accent-foreground: 0 0% 100%; /* White text on green */
+
+    --destructive: 4 90% 58%; /* Red (#F44336) for alerts or negative values */
+    --destructive-foreground: 0 0% 100%; /* White text on red */
+
+    --border: 220 10% 85%; /* Border color */
+    --input: 220 10% 80%; /* Border for input fields - slightly darker than default border */
+    /* Input component text will use `var(--foreground)` which is fine */
+    --ring: 120 39% 49%; /* Green for focus rings, matching accent */
+    
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+
+    /* Sidebar specific variables - retained from original */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 220 10% 10%; /* Dark background for dark mode */
+    --foreground: 220 15% 90%; /* Light text for dark mode */
+
+    --card: 220 10% 15%;
+    --card-foreground: 220 15% 90%;
+
+    --popover: 220 10% 15%;
+    --popover-foreground: 220 15% 90%;
+
+    --primary: 215 60% 55%; /* Slightly lighter blue for dark mode primary */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 30%; /* Darker muted blue for dark mode input backgrounds */
+    --secondary-foreground: 210 50% 85%;
+
+    --muted: 220 10% 25%;
+    --muted-foreground: 220 15% 70%;
+
+    --accent: 120 45% 55%; /* Slightly lighter green for dark mode accent */
+    --accent-foreground: 0 0% 10%;
+
+    --destructive: 4 80% 60%; /* Slightly lighter red for dark mode destructive */
+    --destructive-foreground: 0 0% 10%;
+
+    --border: 220 10% 30%;
+    --input: 220 10% 35%; /* Border for input fields in dark mode */
+    --ring: 120 45% 55%; /* Green for focus rings in dark mode */
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+
+    /* Sidebar specific variables for dark mode - retained from original */
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
