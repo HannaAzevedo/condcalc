@@ -8,7 +8,7 @@ import { CalculationsTab } from "./calculations-tab";
 import type { CalculationsTabProps } from "./calculations-tab";
 import { HistoryTab } from "./history-tab";
 import type { HistoryTabProps } from "./history-tab";
-import { LayoutGrid, Calculator, History } from "lucide-react";
+import { LayoutGrid, Calculator, History, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useCondoDataManager } from "@/hooks/use-condo-data-manager";
 
@@ -29,7 +29,18 @@ export function CondoCalcTabs() {
     loadMonthFromHistory,
     canImportPreviousReadings,
     importPreviousMonthReadings,
+    isDataLoaded, // Get isDataLoaded
   } = useCondoDataManager();
+
+  if (!isDataLoaded) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-8">
+        <Loader2 className="h-16 w-16 animate-spin text-primary mb-6" />
+        <h2 className="text-2xl font-semibold text-primary mb-2">Carregando Dados...</h2>
+        <p className="text-muted-foreground">Por favor, aguarde enquanto preparamos o CondoCalc para você.</p>
+      </div>
+    );
+  }
 
   const dataInputTabProps: DataInputTabProps = {
     commonExpenses,
@@ -50,7 +61,7 @@ export function CondoCalcTabs() {
     calculatedBills,
     commonExpenses,
     tariffRates,
-    currentMonthYear, // Pass currentMonthYear here
+    currentMonthYear,
   };
 
   const historyTabProps: HistoryTabProps = {
@@ -110,3 +121,4 @@ export function CondoCalcTabs() {
     </div>
   );
 }
+
