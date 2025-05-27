@@ -3,7 +3,6 @@ import type { ApartmentData, CalculatedApartmentData, CommonExpenses, TariffRate
 
 export function calculateIndividualConsumption(currentReading: number, previousReading: number): number {
   if (currentReading < previousReading) {
-    // console.warn(`Leitura anterior (${previousReading}) maior que a atual (${currentReading}). Considerado consumo 0.`);
     return 0;
   }
   return currentReading - previousReading;
@@ -35,35 +34,32 @@ export function calculateAllApartments(
       }));
   }
 
-  // A parte do volume da faixa fixa por unidade (ex: 40m³ total / 8 unidades = 5m³/unidade)
-  // Este é o limiar acima do qual o consumo é considerado "excedente" para uma unidade individual.
-  const fixedTierVolumePerUnitShare = fixedTier.volume / numberOfUnits; // User confirmed this as "maior que 5"
-
   const minimumFixedCostSharePerApartment = fixedTier.totalCostForTier / numberOfUnits;
+  const individualExcessThreshold = 5; // Threshold de 5m³ para excedente individual
 
   const apartmentsWithConsumption = apartmentsData.map(ap => {
     const consumption = calculateIndividualConsumption(ap.currentReading, ap.previousReading);
-    // Calcula o excesso da unidade individual: consumo além da sua parte do volume da faixa fixa
-    const individualUnitExcessVolume = Math.max(0, consumption - fixedTierVolumePerUnitShare);
+    // Excedente individual: consumo além do limiar de 5m³
+    const individualExcessVolume = Math.max(0, consumption - individualExcessThreshold);
     return {
       ...ap,
       consumption,
-      individualUnitExcessVolume,
+      individualExcessVolume,
     };
   });
 
-  const totalCondoExcessVolume = apartmentsWithConsumption.reduce((sum, ap) => sum + ap.individualUnitExcessVolume, 0);
+  const totalCondoExcessVolume = apartmentsWithConsumption.reduce((sum, ap) => sum + ap.individualExcessVolume, 0);
 
-  // Calcula os custos de água e esgoto puros, antes de outras taxas e ajustes
   const resultsIntermediate = apartmentsWithConsumption.map(apWithConsumption => {
     let calculatedExcessCostForAp = 0;
     
-    // "Custo Total da Faixa" refere-se ao custo total da primeira faixa excedente
+    // O "Custo Total da Faixa" aqui refere-se ao custo total da *primeira faixa excedente* configurada
     if (totalCondoExcessVolume > 0 && firstExceedingTier && typeof firstExceedingTier.totalCostForTier === 'number') {
-      calculatedExcessCostForAp = (apWithConsumption.individualUnitExcessVolume / totalCondoExcessVolume) * firstExceedingTier.totalCostForTier;
+      calculatedExcessCostForAp = (apWithConsumption.individualExcessVolume / totalCondoExcessVolume) * firstExceedingTier.totalCostForTier;
     }
     
-    const pureWaterCost = minimumFixedCostSharePerApartment + calculatedExcessCostForAp;
+    // Custo de água puro (cota fixa + cota excedente calculada pelas tarifas)
+    const pureWaterTariffCost = minimumFixedCostSharePerApartment + calculatedExcessCostForAp;
 
     const tierCostBreakdown: { [tierName: string]: number } = {
       [fixedTier.name]: parseFloat(minimumFixedCostSharePerApartment.toFixed(2)),
@@ -74,14 +70,13 @@ export function calculateAllApartments(
 
     return {
       ...apWithConsumption,
-      waterCost: parseFloat(pureWaterCost.toFixed(2)), // Custo puro de água (cota fixa + cota excedente)
+      waterCost: parseFloat(pureWaterTariffCost.toFixed(2)), 
       minimumFixedCostShare: parseFloat(minimumFixedCostSharePerApartment.toFixed(2)),
-      excessTierCostTotal: parseFloat(calculatedExcessCostForAp.toFixed(2)), // Este é o "Custo Faixas Excedentes"
+      excessTierCostTotal: parseFloat(calculatedExcessCostForAp.toFixed(2)),
       tierCostBreakdown,
     };
   });
 
-  // Calcula despesas comuns e a conta final
   const totalCondoArea = apartmentsData.reduce((sum, ap) => sum + ap.area, 0);
   const equalShareExpensesSum =
     commonExpenses.garbageFee +
@@ -95,30 +90,28 @@ export function calculateAllApartments(
       ? (apResult.area / totalCondoArea) * commonExpenses.otherServicesFee
       : 0;
     
-    // Total antes do ajuste da fatura da concessionária
     let preliminaryTotalBill = apResult.waterCost + equalShareExpensesPerApartment + proportionalFeeForOtherServices;
 
     return {
         ...apResult,
         equalShareCommonExpenses: parseFloat(equalShareExpensesPerApartment.toFixed(2)),
         proportionalServiceFee: parseFloat(proportionalFeeForOtherServices.toFixed(2)),
-        totalBill: parseFloat(preliminaryTotalBill.toFixed(2)), // Total preliminar
+        totalBill: parseFloat(preliminaryTotalBill.toFixed(2)),
     };
   });
   
-  // Ajuste da diferença com base na `totalUtilityWaterSewerBill` de `commonExpenses`
-  const sumOfPureCalculatedWaterCosts = finalResults.reduce((sum, ap) => sum + ap.waterCost, 0);
-  const waterBillDifference = commonExpenses.totalUtilityWaterSewerBill - sumOfPureCalculatedWaterCosts;
+  const sumOfCalculatedWaterCostsBeforeAdjustment = finalResults.reduce((sum, ap) => sum + ap.waterCost, 0);
+  const waterBillDifferenceToAdjust = commonExpenses.totalUtilityWaterSewerBill - sumOfCalculatedWaterCostsBeforeAdjustment;
   
-  const totalSystemConsumption = finalResults.reduce((sum, ap) => sum + ap.consumption, 0);
+  const totalSystemConsumptionForAdjustment = finalResults.reduce((sum, ap) => sum + ap.consumption, 0);
 
-  if (Math.abs(waterBillDifference) > 0.01) { // Ajusta apenas se a diferença for significativa
+  if (Math.abs(waterBillDifferenceToAdjust) > 0.01) { 
       finalResults = finalResults.map(apResult => {
           let differenceShare = 0;
-          if (totalSystemConsumption > 0) { 
-              differenceShare = (apResult.consumption / totalSystemConsumption) * waterBillDifference;
+          if (totalSystemConsumptionForAdjustment > 0) { 
+              differenceShare = (apResult.consumption / totalSystemConsumptionForAdjustment) * waterBillDifferenceToAdjust;
           } else if (numberOfUnits > 0) { 
-              differenceShare = waterBillDifference / numberOfUnits;
+              differenceShare = waterBillDifferenceToAdjust / numberOfUnits;
           }
           
           const newTotalBill = apResult.totalBill + differenceShare;
@@ -128,9 +121,11 @@ export function calculateAllApartments(
             updatedTierBreakdown["Ajuste Diferença Fatura"] = parseFloat((updatedTierBreakdown["Ajuste Diferença Fatura"] || 0 + differenceShare).toFixed(2));
           }
 
+          // O waterCost e excessTierCostTotal NÃO são alterados aqui, eles refletem o cálculo puro das tarifas.
+          // A diferença da fatura da concessionária ajusta o totalBill e é detalhada.
           return {
               ...apResult,
-              totalBill: parseFloat(newTotalBill.toFixed(2)), // `waterCost` e `excessTierCostTotal` não são alterados aqui
+              totalBill: parseFloat(newTotalBill.toFixed(2)), 
               tierCostBreakdown: updatedTierBreakdown,
           };
       });
