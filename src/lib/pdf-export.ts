@@ -1,7 +1,7 @@
 
 import type { CalculatedApartmentData, CommonExpenses, MonthlyRecord, TariffRates, TariffTier } from '@/lib/types';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // Changed from side-effect import
+import autoTable from 'jspdf-autotable';
 
 /**
  * @fileOverview Functions for PDF export.
@@ -36,11 +36,12 @@ export function exportCalculationsToPDF(
   tariffRates: TariffRates,
   currentMonthYear: string
 ): void {
-  const doc = new jsPDF();
-  const pageHeight = doc.internal.pageSize.height;
+  const doc = new jsPDF({ orientation: 'landscape' });
+  const pageHeight = doc.internal.pageSize.height; 
+  const pageWidth = doc.internal.pageSize.width;  
   let startY = 20;
   const leftMargin = 15;
-  const usableWidth = doc.internal.pageSize.width - (leftMargin * 2);
+  const usableWidth = pageWidth - (leftMargin * 2);
 
 
   doc.setFontSize(18);
@@ -55,34 +56,54 @@ export function exportCalculationsToPDF(
   const totalConsumption = calculatedBills.reduce((sum, ap) => sum + ap.consumption, 0);
   const totalMinimumFixedCostShare = calculatedBills.reduce((sum, ap) => sum + ap.minimumFixedCostShare, 0);
   const totalEqualShareCommonExpenses = calculatedBills.reduce((sum, ap) => sum + ap.equalShareCommonExpenses, 0);
-  const totalWaterCost = calculatedBills.reduce((sum, ap) => sum + ap.waterCost, 0);
   const totalExcessTierCostTotal = calculatedBills.reduce((sum, ap) => sum + ap.excessTierCostTotal, 0);
+  const totalWaterCost = calculatedBills.reduce((sum, ap) => sum + ap.waterCost, 0);
   const totalProportionalServiceFee = calculatedBills.reduce((sum, ap) => sum + ap.proportionalServiceFee, 0);
   const totalOverallBill = calculatedBills.reduce((sum, ap) => sum + ap.totalBill, 0);
 
-  autoTable(doc, { // Changed from (doc as any).autoTable
+  const head = [
+    'Unidade', 
+    'Leitura Anterior (m³)', 
+    'Leitura Atual (m³)', 
+    'Consumo (m³)', 
+    'Rateio Mín. Fixo (R$)', 
+    'Custo Faixas Excedentes (R$)', 
+    'Custo Água/Esgoto (R$)',
+    'Taxas Comuns (R$)', 
+    'Serviços Prop. (R$)', 
+    'Total (R$)'
+  ];
+  const body = calculatedBills.map(ap => [
+    ap.unitNumber,
+    Math.round(ap.previousReading).toString(),
+    Math.round(ap.currentReading).toString(),
+    Math.round(ap.consumption).toString(),
+    formatCurrencyForPDF(ap.minimumFixedCostShare),
+    formatCurrencyForPDF(ap.excessTierCostTotal),
+    formatCurrencyForPDF(ap.waterCost),
+    formatCurrencyForPDF(ap.equalShareCommonExpenses),
+    formatCurrencyForPDF(ap.proportionalServiceFee),
+    formatCurrencyForPDF(ap.totalBill)
+  ]);
+  const foot = [[
+      'TOTAIS',
+      '', // Leitura Anterior
+      '', // Leitura Atual
+      Math.round(totalConsumption).toString() + ' m³',
+      formatCurrencyForPDF(totalMinimumFixedCostShare),
+      formatCurrencyForPDF(totalExcessTierCostTotal),
+      formatCurrencyForPDF(totalWaterCost),
+      formatCurrencyForPDF(totalEqualShareCommonExpenses),
+      formatCurrencyForPDF(totalProportionalServiceFee),
+      formatCurrencyForPDF(totalOverallBill)
+  ]];
+
+
+  autoTable(doc, {
     startY: startY,
-    head: [['Unidade', 'Consumo (m³)', 'Rateio Mín. Fixo (R$)', 'Taxas Comuns (R$)', 'Custo Água/Esgoto (R$)', 'Custo Exced. (R$)', 'Serviços Prop. (R$)', 'Total (R$)']],
-    body: calculatedBills.map(ap => [
-      ap.unitNumber,
-      ap.consumption.toFixed(3),
-      formatCurrencyForPDF(ap.minimumFixedCostShare),
-      formatCurrencyForPDF(ap.equalShareCommonExpenses),
-      formatCurrencyForPDF(ap.waterCost),
-      formatCurrencyForPDF(ap.excessTierCostTotal),
-      formatCurrencyForPDF(ap.proportionalServiceFee),
-      formatCurrencyForPDF(ap.totalBill)
-    ]),
-    foot: [[
-        'TOTAIS',
-        totalConsumption.toFixed(3) + ' m³',
-        formatCurrencyForPDF(totalMinimumFixedCostShare),
-        formatCurrencyForPDF(totalEqualShareCommonExpenses),
-        formatCurrencyForPDF(totalWaterCost),
-        formatCurrencyForPDF(totalExcessTierCostTotal),
-        formatCurrencyForPDF(totalProportionalServiceFee),
-        formatCurrencyForPDF(totalOverallBill)
-    ]],
+    head: [head],
+    body: body,
+    foot: foot,
     theme: 'striped',
     headStyles: { fillColor: [22, 160, 133] }, 
     footStyles: { fillColor: [200, 200, 200], textColor: [0,0,0], fontStyle: 'bold' },
@@ -92,7 +113,7 @@ export function exportCalculationsToPDF(
     }
   });
   
-  startY = (doc as any).lastAutoTable.finalY + 15; 
+  startY = (doc as any).lastAutoTable.finalY + 15;
 
 
   if (startY > pageHeight - 40) { 
@@ -113,12 +134,12 @@ export function exportCalculationsToPDF(
     ["Total Fatura Concessionária", formatCurrencyForPDF(commonExpenses.totalUtilityWaterSewerBill)],
   ];
 
-  autoTable(doc, { // Changed from (doc as any).autoTable
+  autoTable(doc, {
     startY: startY,
     head: [['Descrição da Despesa', 'Valor (R$)']],
     body: commonExpensesData,
     theme: 'grid',
-    headStyles: { fillColor: [100, 100, 100] },
+    headStyles: { fillColor: [100, 100, 100] }, 
     margin: { left: leftMargin, right: leftMargin },
     didDrawPage: (data: any) => {
       // startY updated automatically
@@ -162,18 +183,20 @@ export function exportCalculationsToPDF(
       tariffTableData.push([`Faixa ${tariffRates.tiers.indexOf(tier) + 1}`, tierDetails]);
   });
   
-  autoTable(doc, { // Changed from (doc as any).autoTable
+  autoTable(doc, {
       startY: startY,
       head: [['Item da Tarifa', 'Detalhes']],
       body: tariffTableData,
       theme: 'grid',
       headStyles: { fillColor: [100, 100, 100] },
       columnStyles: {
-          0: { cellWidth: usableWidth * 0.3 }, // 30% for the first column
-          1: { cellWidth: usableWidth * 0.7 }, // 70% for the second column, allows for wrapping
+          0: { cellWidth: usableWidth * 0.3 }, 
+          1: { cellWidth: usableWidth * 0.7 }, 
       },
       margin: { left: leftMargin, right: leftMargin },
-      styles: { cellPadding: 2, fontSize: 9 }, // Adjust fontSize if needed
+      styles: { cellPadding: 2, fontSize: 9,
+        overflow: 'linebreak', 
+      }, 
       didDrawPage: (data:any) => {
         // startY updated automatically
       }
@@ -187,25 +210,18 @@ export function exportCalculationsToPDF(
  * @param history - Array of monthly records.
  */
 export function exportHistoryToPDF(history: MonthlyRecord[]): void {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: 'landscape' });
   const leftMargin = 15;
   
   doc.setFontSize(18);
   doc.text("Relatório de Histórico de Contas", leftMargin, 20);
 
-  // If you want to show a general "Generated on MM/YYYY" for the history PDF:
-  // const now = new Date();
-  // const generatedMonthYear = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
-  // doc.setFontSize(12);
-  // doc.text(`Gerado em: ${generatedMonthYear}`, leftMargin, 28);
-
-
-  autoTable(doc, { // Changed from (doc as any).autoTable
-    startY: 30, // Adjust if adding generated date
+  autoTable(doc, {
+    startY: 30,
     head: [['Mês/Ano', 'Consumo Total (m³)', 'Conta Total (R$)', 'Média/Unidade (R$)']],
     body: history.map(record => [
-      formatDateForPDF(record.monthYear), // Format monthYear for display
-      record.totalCondoConsumption.toFixed(3),
+      formatDateForPDF(record.monthYear),
+      record.totalCondoConsumption.toFixed(0),
       formatCurrencyForPDF(record.totalCondoBill),
       formatCurrencyForPDF(record.averageBillPerUnit)
     ]),
@@ -216,4 +232,3 @@ export function exportHistoryToPDF(history: MonthlyRecord[]): void {
 
   doc.save('relatorio_historico.pdf');
 }
-
