@@ -1,4 +1,4 @@
-# Firebase Studio
+# CondCalc
 
 This is a NextJS starter in Firebase Studio.
 
