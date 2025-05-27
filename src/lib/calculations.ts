@@ -20,7 +20,7 @@ export function calculateAllApartments(
   const firstExceedingTier = tariffConfiguration.tiers.find(t => !t.isFixedValue);
 
   if (!fixedTier || typeof fixedTier.volume !== 'number' || fixedTier.volume < 0 || typeof fixedTier.totalCostForTier !== 'number') {
-    console.error("Fixed tariff tier (minimum consumption) not found, invalid, or without total cost defined in configuration.");
+    console.error("Faixa fixa (consumo mínimo) não encontrada, inválida ou sem custo total definido na configuração.");
      return apartmentsData.map(ap => ({
         ...ap,
         consumption: calculateIndividualConsumption(ap.currentReading, ap.previousReading),
@@ -33,48 +33,53 @@ export function calculateAllApartments(
         tierCostBreakdown: {},
       }));
   }
-  
-  // ETAPA 1: Rateio da Faixa Mínima (valor fixo dividido entre todos)
-  const minimumFixedCostSharePerApartment = fixedTier.totalCostForTier / numberOfUnits;
 
-  // Calculate Value per m³ for Excess from the first exceeding tier
-  // This is the "Valor Unit. Exced. Total (R$/m³)" mentioned by the user.
-  let valuePerM3ForExcess = 0;
-  if (firstExceedingTier && typeof firstExceedingTier.totalCostForTier === 'number' && firstExceedingTier.volume > 0) {
-    valuePerM3ForExcess = firstExceedingTier.totalCostForTier / firstExceedingTier.volume;
-  } else {
-    console.warn("First exceeding tier not found or invalid. Excess costs will be zero if applicable.");
+  if (!firstExceedingTier || typeof firstExceedingTier.totalCostForTier !== 'number') {
+    console.warn("Primeira faixa excedente não encontrada ou sem custo total definido. Custos excedentes serão zero.");
+    // Proceed with fixed cost calculation but excess will be 0
   }
+  
+  const minimumFixedCostSharePerApartment = fixedTier.totalCostForTier / numberOfUnits;
+  const fixedTierVolumePerUnitShare = fixedTier.volume / numberOfUnits; // This is effectively 5m³ if fixedTier.volume is 40 and numberOfUnits is 8
 
-  const results: CalculatedApartmentData[] = apartmentsData.map(ap => {
+  // Stage 1: Calculate individual consumptions and their excess over the per-unit fixed share
+  const apartmentsWithConsumption = apartmentsData.map(ap => {
     const consumption = calculateIndividualConsumption(ap.currentReading, ap.previousReading);
+    // User's logic: excess is volume consumed greater than 5m³ (which is fixedTierVolumePerUnitShare)
+    const individualUnitExcessVolume = Math.max(0, consumption - fixedTierVolumePerUnitShare); 
+    return {
+      ...ap,
+      consumption,
+      individualUnitExcessVolume,
+    };
+  });
 
-    // User logic for excess calculation:
-    // "a unidade Consumo (m³) por unidade - (Volume da Faixa (m³)/qtd (Apartamentos))"
-    // This is: individual consumption - (fixed tier total volume / number of units)
-    const fixedTierVolumeSharePerAp = fixedTier.volume / numberOfUnits; // e.g., 40m³ total fixed vol / 8 units = 5m³ fixed vol share per AP
-    const individualExcessConsumption = Math.max(0, consumption - fixedTierVolumeSharePerAp);
+  // Stage 2: Calculate total excess volume for the condominium
+  const totalCondoExcessVolume = apartmentsWithConsumption.reduce((sum, ap) => sum + ap.individualUnitExcessVolume, 0);
+
+  // Stage 3: Calculate final details for each apartment
+  let results: CalculatedApartmentData[] = apartmentsWithConsumption.map(apWithConsumption => {
+    let calculatedExcessCostForAp = 0;
     
-    // "esse valor deve ser multiplicado pelo Valor Unit. Exced. Total (R$/m³)"
-    const calculatedExcessCostForAp = individualExcessConsumption * valuePerM3ForExcess;
+    if (totalCondoExcessVolume > 0 && firstExceedingTier && typeof firstExceedingTier.totalCostForTier === 'number') {
+      calculatedExcessCostForAp = (apWithConsumption.individualUnitExcessVolume / totalCondoExcessVolume) * firstExceedingTier.totalCostForTier;
+    }
     
     const tierCostBreakdown: { [tierName: string]: number } = {
       [fixedTier.name]: parseFloat(minimumFixedCostSharePerApartment.toFixed(2)),
     };
 
     if (calculatedExcessCostForAp > 0 && firstExceedingTier) {
-      // The cost for the "excess" part is now a single value, named after the first exceeding tier.
       tierCostBreakdown[firstExceedingTier.name] = parseFloat(calculatedExcessCostForAp.toFixed(2));
     }
     
     const totalWaterCost = minimumFixedCostSharePerApartment + calculatedExcessCostForAp;
 
     return {
-      ...ap,
-      consumption,
+      ...apWithConsumption, // This includes original ap data, consumption, and individualUnitExcessVolume
       waterCost: parseFloat(totalWaterCost.toFixed(2)),
       minimumFixedCostShare: parseFloat(minimumFixedCostSharePerApartment.toFixed(2)),
-      excessTierCostTotal: parseFloat(calculatedExcessCostForAp.toFixed(2)), // This field feeds the "Custo Faixas Excedentes (R$)" column
+      excessTierCostTotal: parseFloat(calculatedExcessCostForAp.toFixed(2)),
       tierCostBreakdown,
       equalShareCommonExpenses: 0, 
       proportionalServiceFee: 0, 
@@ -91,43 +96,64 @@ export function calculateAllApartments(
     commonExpenses.waterPenalty;
   const demaisServicosPerApartment = numberOfUnits > 0 ? demaisServicosSum / numberOfUnits : 0;
 
-  results.forEach(apResult => {
-    apResult.equalShareCommonExpenses = parseFloat(demaisServicosPerApartment.toFixed(2));
-    apResult.totalBill += demaisServicosPerApartment;
-
+  results = results.map(apResult => {
+    const equalShareCommonExpenses = parseFloat(demaisServicosPerApartment.toFixed(2));
     const proportionalFeeForOtherServices = totalCondoArea > 0 && apResult.area > 0
       ? (apResult.area / totalCondoArea) * commonExpenses.otherServicesFee
       : 0;
-    apResult.proportionalServiceFee = parseFloat(proportionalFeeForOtherServices.toFixed(2));
-    apResult.totalBill += proportionalFeeForOtherServices;
     
-    apResult.totalBill = parseFloat(apResult.totalBill.toFixed(2));
+    let currentTotalBill = apResult.totalBill + equalShareCommonExpenses + proportionalFeeForOtherServices;
+
+    return {
+        ...apResult,
+        equalShareCommonExpenses: equalShareCommonExpenses,
+        proportionalServiceFee: parseFloat(proportionalFeeForOtherServices.toFixed(2)),
+        totalBill: parseFloat(currentTotalBill.toFixed(2)), // Initial total before difference adjustment
+    };
   });
   
   // Difference adjustment based on totalUtilityWaterSewerBill
-  const sumOfCalculatedWaterCostsForAllAps = results.reduce((sum, ap) => sum + ap.waterCost, 0);
+  const sumOfCalculatedWaterCostsForAllAps = results.reduce((sum, ap) => sum + ap.waterCost, 0); // waterCost already includes minShare + excessTierCost
   const waterBillDifference = commonExpenses.totalUtilityWaterSewerBill - sumOfCalculatedWaterCostsForAllAps;
   
   const totalSystemConsumption = results.reduce((sum, ap) => sum + ap.consumption, 0);
 
-  if (Math.abs(waterBillDifference) > 0.01) { 
-      results.forEach(apResult => {
+  if (Math.abs(waterBillDifference) > 0.01 && totalSystemConsumption > 0) { 
+      results = results.map(apResult => {
           let differenceShare = 0;
-          if (totalSystemConsumption > 0) {
+          if (totalSystemConsumption > 0) { // Check to prevent division by zero if all consumptions are 0
               differenceShare = (apResult.consumption / totalSystemConsumption) * waterBillDifference;
-          } else if (numberOfUnits > 0) { 
+          } else if (numberOfUnits > 0) { // Fallback: if no consumption, divide difference equally
               differenceShare = waterBillDifference / numberOfUnits;
           }
-          apResult.totalBill += differenceShare;
-          apResult.totalBill = parseFloat(apResult.totalBill.toFixed(2));
           
-          // Optionally, reflect this difference in waterCost and tierCostBreakdown for full transparency
-          // For example:
-          // apResult.waterCost += differenceShare;
-          // apResult.waterCost = parseFloat(apResult.waterCost.toFixed(2));
-          // apResult.tierCostBreakdown["Ajuste Diferença Fatura"] = parseFloat(differenceShare.toFixed(2));
+          const newTotalBill = apResult.totalBill + differenceShare;
+          // Optionally adjust waterCost or add to tierBreakdown for transparency
+          // For now, just adjusting totalBill
+          return {
+              ...apResult,
+              totalBill: parseFloat(newTotalBill.toFixed(2)),
+              // Example of reflecting in tierBreakdown:
+              // tierCostBreakdown: {
+              //   ...apResult.tierCostBreakdown,
+              //   "Ajuste Diferença Fatura": parseFloat(differenceShare.toFixed(2))
+              // }
+          };
+      });
+  } else if (Math.abs(waterBillDifference) > 0.01 && totalSystemConsumption === 0 && numberOfUnits > 0) {
+      // Handle case where there's a difference but no consumption (e.g. fixed utility charges)
+      // Distribute equally among units
+      const differenceSharePerUnit = waterBillDifference / numberOfUnits;
+      results = results.map(apResult => {
+          const newTotalBill = apResult.totalBill + differenceSharePerUnit;
+          return {
+              ...apResult,
+              totalBill: parseFloat(newTotalBill.toFixed(2)),
+          };
       });
   }
 
+
   return results;
 }
+
