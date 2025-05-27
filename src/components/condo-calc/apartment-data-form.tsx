@@ -165,12 +165,12 @@ export function ApartmentDataForm({ defaultValues = [], onApartmentChange, canIm
                             const curr = watchedApartments?.[index]?.currentReading;
                             if (typeof prev === 'number' && typeof curr === 'number') {
                               if (curr >= prev) {
-                                return (curr - prev).toFixed(3);
+                                return (curr - prev).toFixed(0);
                               } else {
                                 return <span className="text-destructive font-medium">Inválido</span>;
                               }
                             }
-                            return '0.000'; 
+                            return '0'; 
                           })()
                         }
                       </TableCell>
