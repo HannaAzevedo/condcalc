@@ -1,4 +1,3 @@
-[⚠️ Suspicious Content] 
 import type { CalculatedApartmentData, CommonExpenses, MonthlyRecord, TariffRates, TariffTier } from '@/lib/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
