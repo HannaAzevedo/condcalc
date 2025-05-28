@@ -311,7 +311,7 @@ export function TariffRatesForm({ defaultValues, onSubmit }: TariffRatesFormProp
             type="button"
             variant="outline"
             onClick={() => {
-              const newTierVolume = 0; 
+              const newTierVolume = 10; 
               const newTierRate = defaultFirstExceedingTierRate; 
               const newWaterCost = newTierVolume * newTierRate; 
               append({ 
