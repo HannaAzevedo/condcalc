@@ -53,6 +53,8 @@ export function exportCalculationsToPDF(
   startY += 10;
 
   // Calculate totals for the footer
+  const totalPreviousReading = calculatedBills.reduce((sum, ap) => sum + ap.previousReading, 0);
+  const totalCurrentReading = calculatedBills.reduce((sum, ap) => sum + ap.currentReading, 0);
   const totalConsumption = calculatedBills.reduce((sum, ap) => sum + ap.consumption, 0);
   const totalMinimumFixedCostShare = calculatedBills.reduce((sum, ap) => sum + ap.minimumFixedCostShare, 0);
   const totalEqualShareCommonExpenses = calculatedBills.reduce((sum, ap) => sum + ap.equalShareCommonExpenses, 0);
@@ -63,11 +65,11 @@ export function exportCalculationsToPDF(
 
   const head = [
     'Unidade', 
-    'Leitura Anterior (m³)', 
-    'Leitura Atual (m³)', 
+    'Leitura Anterior (m³)',
+    'Leitura Atual (m³)',
     'Consumo (m³)', 
-    'Rateio Mín. Fixo (R$)', 
-    'Custo Faixas Excedentes (R$)', 
+    'Rateio Mín. Fixo (R$)',
+    'Custo Faixas Excedentes (R$)',
     'Custo Água/Esgoto (R$)',
     'Taxas Comuns (R$)', 
     'Serviços Prop. (R$)', 
@@ -176,9 +178,7 @@ export function exportCalculationsToPDF(
           if (tier.totalCostForTier !== undefined) {
               tierDetails += `\nCusto Total Faixa: ${formatCurrencyForPDF(tier.totalCostForTier)}`;
           }
-          if (tier.unitExcessRateTotal !== undefined) {
-              tierDetails += `\nValor Unit. Exced. Total (R$/m³): ${formatCurrencyForPDF(tier.unitExcessRateTotal)}`;
-          }
+          // A linha abaixo referente a 'unitExcessRateTotal' foi removida
       }
       tariffTableData.push([`Faixa ${tariffRates.tiers.indexOf(tier) + 1}`, tierDetails]);
   });
@@ -232,3 +232,4 @@ export function exportHistoryToPDF(history: MonthlyRecord[]): void {
 
   doc.save('relatorio_historico.pdf');
 }
+
