@@ -243,7 +243,7 @@ export function TariffRatesForm({ defaultValues, onSubmit }: TariffRatesFormProp
                             }}
                             readOnly={!isFixed} 
                             className={`${isFixed ? 'bg-secondary' : 'bg-muted/50 cursor-not-allowed'} pl-9 text-foreground border-input focus:ring-accent`}
-                            placeholder={isFixed ? "Ex: 403.36" : "Calculado"}
+                            placeholder={isFixed ? "Ex: 408.96" : "Calculado"}
                           />
                         )}
                       />
@@ -311,7 +311,7 @@ export function TariffRatesForm({ defaultValues, onSubmit }: TariffRatesFormProp
             type="button"
             variant="outline"
             onClick={() => {
-              const newTierVolume = 10; 
+              const newTierVolume = 0; 
               const newTierRate = defaultFirstExceedingTierRate; 
               const newWaterCost = newTierVolume * newTierRate; 
               append({ 
